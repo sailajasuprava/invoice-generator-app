@@ -2,9 +2,34 @@
 
 import { Zap, Shield, Download } from "lucide-react";
 import { useNavigate } from "react-router";
+import { boundary } from "@shopify/shopify-app-react-router/server";
+import { authenticate } from "../shopify.server";
 
+export const loader = async ({ request }) => {
+  const { admin } = await authenticate.admin(request);
+
+  const response = await admin.graphql(
+    `#graphql
+    query shopInfo {
+      shop {
+        name
+      }
+    }`,
+  );
+
+  const responseJson = await response.json();
+
+  return {
+    shopName: responseJson.data.shop.name,
+  };
+};
+
+export const action = async ({ request }) => {
+  await authenticate.admin(request);
+  return null;
+};
 // Main App Component for the Landing Page
-const App = () => {
+export default function App() {
   const navigate = useNavigate();
 
   // Helper component for the feature cards
@@ -212,6 +237,8 @@ const App = () => {
       </div>
     </div>
   );
-};
+}
 
-export default App;
+export const headers = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};
