@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "8856d0598ebedd56676f120edebad935"
-name = "invoice-generator-app"
+name = "EasyInvoicer"
 application_url = "https://invoice-generator-app-tawny.vercel.app"
 embedded = true
 

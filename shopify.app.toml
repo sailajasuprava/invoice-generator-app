@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "f0a3b3f25fcede78e42e646c79f6e4f4"
-name = "invoice-generator-app"
+name = "EasyInvoicer"
 application_url = "https://example.com"
 embedded = true
 
