@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { useAppBridge } from "@shopify/app-bridge-react";
 
 // 1. IMPORT ICONS from lucide-react
 import {
@@ -16,17 +17,15 @@ import {
   Trash2,
   Calendar,
   List,
+  Loader2,
 } from "lucide-react";
 
-// NOTE: This mock is here only for the single-file environment.
-// In your app, ensure the real useAppBridge is imported.
-const useAppBridge = () => ({
-  toast: {
-    show: (message) => {
-      console.log(`[AppBridge Mock Toast]: ${message}`);
-    },
-  },
-});
+import { authenticate } from "../shopify.server";
+
+export const loader = async ({ request }) => {
+  await authenticate.admin(request);
+  return null;
+};
 
 // --- REUSABLE COMPONENTS (Helpers) ---
 
@@ -164,8 +163,8 @@ const App = () => {
     loadInvoiceForEdit();
   }, []);
 
-  const { toast } = useAppBridge();
-  const [toastMessage, setToastMessage] = useState(null);
+  const app = useAppBridge();
+  const [loading, setLoading] = useState(false);
 
   // --- FORM STATE ---
   const [businessName, setBusinessName] = useState("");
@@ -194,10 +193,8 @@ const App = () => {
   ]);
 
   // --- TOAST MANAGEMENT ---
-  const showLocalToast = (message) => {
-    setToastMessage(message);
-    toast.show(message);
-    setTimeout(() => setToastMessage(null), 3000);
+  const showLocalToast = (message, isError = false) => {
+    app.toast.show(message, { isError });
   };
 
   // --- CALCULATIONS ---
@@ -293,65 +290,71 @@ const App = () => {
   };
 
   const saveInvoice = async () => {
-    if (!invoiceNumber || invoiceNumber.trim() === "") {
-      showLocalToast("Invoice Number is required!");
-      return; // Stop the API call
+    setLoading(true);
+
+    try {
+      if (!invoiceNumber || invoiceNumber.trim() === "") {
+        showLocalToast("Invoice Number is required!");
+        return; // Stop the API call
+      }
+
+      if (
+        lineItems.length === 0 ||
+        lineItems.some((item) => !item.name.trim() || Number(item.price) <= 0)
+      ) {
+        showLocalToast(
+          "Please add at least one line item with a name and price.",
+        );
+        return;
+      }
+      const payload = {
+        id: editingIndex ?? null,
+        invoiceNumber,
+        invoiceDate,
+        dueDate,
+        businessName,
+        businessAddress,
+        gistn,
+        customerName,
+        billingAddress,
+        email,
+        mobile,
+        summary: {
+          subtotal: Number(summary.subtotal),
+          cgst: Number(summary.cgst),
+          sgst: Number(summary.sgst),
+          igst: Number(summary.igst),
+          total: Number(summary.total),
+        },
+        lineItems: lineItems.map((item) => ({
+          name: item.name,
+          hsn: item.hsn,
+          qty: Number(item.qty),
+          price: Number(item.price),
+          gst: Number(item.gst),
+          total: Number(item.total),
+        })),
+      };
+
+      const response = await fetch("/api/invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (result.ok) {
+        showLocalToast(editingIndex ? "Invoice updated ✔" : "Invoice saved ✔");
+      }
+    } catch (error) {
+      console.error("Save invoice error:", error);
+      showLocalToast("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
 
-    if (
-      lineItems.length === 0 ||
-      lineItems.some((item) => !item.name.trim() || Number(item.price) <= 0)
-    ) {
-      showLocalToast(
-        "Please add at least one line item with a name and price.",
-      );
-      return;
-    }
-    const payload = {
-      id: editingIndex ?? null,
-      invoiceNumber,
-      invoiceDate,
-      dueDate,
-      businessName,
-      businessAddress,
-      gistn,
-      customerName,
-      billingAddress,
-      email,
-      mobile,
-      summary: {
-        subtotal: Number(summary.subtotal),
-        cgst: Number(summary.cgst),
-        sgst: Number(summary.sgst),
-        igst: Number(summary.igst),
-        total: Number(summary.total),
-      },
-      lineItems: lineItems.map((item) => ({
-        name: item.name,
-        hsn: item.hsn,
-        qty: Number(item.qty),
-        price: Number(item.price),
-        gst: Number(item.gst),
-        total: Number(item.total),
-      })),
-    };
-
-    console.log("Saving invoice...", payload);
-
-    const response = await fetch("/api/invoices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    console.log("API status:", response.status);
-
-    const result = await response.json();
-    console.log("API Response:", result);
-
-    if (result.ok) {
-      showLocalToast(editingIndex ? "Invoice updated ✔" : "Invoice saved ✔");
-    }
+    setLoading(false);
   };
 
   const downloadPDF = () => {
@@ -622,21 +625,31 @@ const App = () => {
           <SecondaryButton onClick={previewInvoice}>
             <Eye className="w-5 h-5 mr-2" /> Preview Invoice
           </SecondaryButton>
-          <PrimaryButton onClick={saveInvoice}>
-            <Save className="w-5 h-5 mr-2" /> Save Invoice
-          </PrimaryButton>
+
+          <button
+            type="button"
+            onClick={saveInvoice}
+            disabled={loading}
+            className="bg-teal-500 hover:bg-teal-600 disabled:cursor-not-allowed text-white font-semibold py-2 px-3 rounded-lg shadow-md transition duration-150 ease-in-out flex items-center justify-center whitespace-nowrap"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Saving…
+              </>
+            ) : (
+              <>
+                <Save className="w-5 h-5 mr-2" />
+                Save Invoice
+              </>
+            )}
+          </button>
+
           <PrimaryButton onClick={downloadPDF}>
             <Download className="w-5 h-5 mr-2" /> Download PDF
           </PrimaryButton>
         </div>
       </div>
-
-      {/* Simple Local Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 bg-gray-800 text-white p-3 rounded-lg shadow-xl transition-opacity duration-300 z-50">
-          {toastMessage}
-        </div>
-      )}
 
       <div id="invoice-preview" style={{ display: "none" }}>
         <style>
