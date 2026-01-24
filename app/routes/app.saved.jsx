@@ -76,7 +76,9 @@ export default function SavedInvoicesPage() {
 
   // UI state for the confirmation modal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [invoiceToDeleteIndex, setInvoiceToDeleteIndex] = useState(null);
+  // const [invoiceToDeleteIndex, setInvoiceToDeleteIndex] = useState(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState(null);
+
   const [invoices, setInvoices] = useState([]);
   const navigate = useNavigate();
 
@@ -87,8 +89,8 @@ export default function SavedInvoicesPage() {
   }, []);
 
   // Function to trigger the modal
-  const openDeleteModal = (index) => {
-    setInvoiceToDeleteIndex(index);
+  const openDeleteModal = (invoice) => {
+    setInvoiceToDelete(invoice);
     setIsModalOpen(true);
   };
 
@@ -103,23 +105,30 @@ export default function SavedInvoicesPage() {
         }).format(num);
   };
 
-  const confirmDelete = () => {
-    if (invoiceToDeleteIndex === null) {
+  const confirmDelete = async () => {
+    if (!invoiceToDelete) {
       setIsModalOpen(false);
       return;
     }
+    console.log(invoiceToDelete?.id);
+    try {
+      await fetch("/api/invoices/delete", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id: invoiceToDelete.id }),
+      });
 
-    const index = invoiceToDeleteIndex;
+      setInvoices((prev) =>
+        prev.filter((inv) => inv.id !== invoiceToDelete.id),
+      );
+    } catch (error) {
+      console.error("Delete failed:", error);
+    }
 
-    // Original deletion logic
-    const updated = [...invoices];
-    updated.splice(index, 1);
-    localStorage.setItem("invoices", JSON.stringify(updated));
-    setInvoices(updated);
-
-    // Close modal and reset state
     setIsModalOpen(false);
-    setInvoiceToDeleteIndex(null);
+    setInvoiceToDelete(null);
   };
 
   const editInvoice = (id) => {
@@ -160,8 +169,8 @@ export default function SavedInvoicesPage() {
               No Invoices Found
             </p>
             <p className="text-gray-500 max-w-lg mx-auto">
-              It looks like you haven't saved any invoices yet. Click below to
-              start generating your first professional invoice!
+              It looks like you haven&apos;t saved any invoices yet. Click below
+              to start generating your first professional invoice!
             </p>
             <button
               onClick={() => navigate("/app/invoice")} // Changed from navigate to state change
@@ -241,7 +250,7 @@ export default function SavedInvoicesPage() {
 
                           {/* DELETE (Calls the modal trigger) */}
                           <button
-                            onClick={() => openDeleteModal(index)}
+                            onClick={() => openDeleteModal(inv)}
                             className="p-2 rounded-full text-red-600 hover:bg-red-100 transition duration-150 group"
                             title="Delete Invoice"
                           >

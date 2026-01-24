@@ -19,6 +19,20 @@ export async function action({ request }) {
     const { session, admin } = await authenticate.admin(request);
     const shop = session.shop;
 
+    // ✅ HANDLE DELETE
+    if (request.method === "DELETE") {
+      const { id } = await request.json();
+
+      await prisma.invoice.delete({
+        where: {
+          id,
+          shop,
+        },
+      });
+
+      return Response.json({ ok: true });
+    }
+
     // ✅ NEW: Shopify API usage (READ-ONLY, SAFE)
     const shopQuery = `#graphql
       query {
