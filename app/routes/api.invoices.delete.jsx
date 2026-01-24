@@ -1,14 +1,17 @@
 import prisma from "../db.server";
+import { authenticate } from "../shopify.server";
 
 export const action = async ({ request }) => {
+  // 🔐 REQUIRED for embedded apps
+  await authenticate.admin(request);
+
   const { id } = await request.json();
 
-  // 1️⃣ Delete child records first
+  // ✅ Delete children first (FK safe)
   await prisma.lineItem.deleteMany({
     where: { invoiceId: id },
   });
 
-  // 2️⃣ Then delete the invoice
   await prisma.invoice.delete({
     where: { id },
   });
