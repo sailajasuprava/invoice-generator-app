@@ -139,7 +139,7 @@ export default function SavedInvoicesPage() {
   };
 
   const downloadInvoice = (id) => {
-    localStorage.setItem("editIndex", id);
+    localStorage.setItem("downloadInvoiceId", id);
     navigate("/app/invoice?download=1");
   };
 

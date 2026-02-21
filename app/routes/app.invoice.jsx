@@ -1,5 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { useAppBridge } from "@shopify/app-bridge-react";
@@ -128,39 +129,102 @@ const SummaryRow = ({ label, value, isTotal = false }) => (
 // --- MAIN APP COMPONENT ---
 const App = () => {
   const [editingIndex, setEditingIndex] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const loadInvoiceForEdit = async () => {
-      const id = localStorage.getItem("editIndex");
-      if (!id) return;
+    const loadInvoice = async () => {
+      const editId = localStorage.getItem("editIndex");
+      const downloadId = localStorage.getItem("downloadInvoiceId");
+      const urlParams = new URLSearchParams(window.location.search);
+      const isDownload = urlParams.get("download");
 
-      try {
-        const res = await fetch("/api/invoices");
-        if (!res.ok) throw new Error("Failed to fetch invoices");
+      // =========================
+      // ✅ DOWNLOAD MODE
+      // =========================
+      if (isDownload && downloadId) {
+        try {
+          const res = await fetch("/api/invoices");
+          if (!res.ok) throw new Error("Failed to fetch invoices");
 
-        const all = await res.json();
-        const invoice = all.find((inv) => inv.id === id);
-        if (!invoice) return;
+          const invoices = await res.json();
+          const invoice = invoices.find((inv) => inv.id === downloadId);
+          if (!invoice) return;
 
-        setEditingIndex(invoice.id);
-
-        setInvoiceNumber(invoice.invoiceNumber || "");
-        setInvoiceDate(invoice.invoiceDate || "");
-        setDueDate(invoice.dueDate || "");
-        setBusinessName(invoice.businessName || "");
-        setBusinessAddress(invoice.businessAddress || "");
-        setGistn(invoice.gistn || "");
-        setCustomerName(invoice.customerName || "");
-        setBillingAddress(invoice.billingAddress || "");
-        setEmail(invoice.email || "");
-        setMobile(invoice.mobile || "");
-        setLineItems(invoice.lineItems || []);
-      } catch (error) {
-        console.error("Error loading invoice:", error);
+          setEditingIndex(null); // ❗ important: download ≠ edit
+          setInvoiceNumber(invoice.invoiceNumber || "");
+          setInvoiceDate(invoice.invoiceDate || "");
+          setDueDate(invoice.dueDate || "");
+          setBusinessName(invoice.businessName || "");
+          setBusinessAddress(invoice.businessAddress || "");
+          setGistn(invoice.gistn || "");
+          setCustomerName(invoice.customerName || "");
+          setBillingAddress(invoice.billingAddress || "");
+          setEmail(invoice.email || "");
+          setMobile(invoice.mobile || "");
+          setLineItems(invoice.lineItems || []);
+        } catch (error) {
+          console.error("Error loading invoice for download:", error);
+        }
+        return;
       }
+
+      // =========================
+      // ✅ EDIT MODE
+      // =========================
+      if (editId) {
+        try {
+          const res = await fetch("/api/invoices");
+          if (!res.ok) throw new Error("Failed to fetch invoices");
+
+          const invoices = await res.json();
+          const invoice = invoices.find((inv) => inv.id === editId);
+          if (!invoice) return;
+
+          setEditingIndex(invoice.id);
+          setInvoiceNumber(invoice.invoiceNumber || "");
+          setInvoiceDate(invoice.invoiceDate || "");
+          setDueDate(invoice.dueDate || "");
+          setBusinessName(invoice.businessName || "");
+          setBusinessAddress(invoice.businessAddress || "");
+          setGistn(invoice.gistn || "");
+          setCustomerName(invoice.customerName || "");
+          setBillingAddress(invoice.billingAddress || "");
+          setEmail(invoice.email || "");
+          setMobile(invoice.mobile || "");
+          setLineItems(invoice.lineItems || []);
+        } catch (error) {
+          console.error("Error loading invoice for edit:", error);
+        }
+        return;
+      }
+
+      // =========================
+      // ✅ CREATE MODE (DEFAULT)
+      // =========================
+      setEditingIndex(null);
+      setInvoiceNumber("");
+      setInvoiceDate(new Date().toISOString().split("T")[0]);
+      setDueDate("");
+      setBusinessName("");
+      setBusinessAddress("");
+      setCustomerName("");
+      setBillingAddress("");
+      setEmail("");
+      setMobile("");
+      setLineItems([
+        {
+          id: 1,
+          name: "",
+          hsn: "",
+          qty: 1,
+          price: 0,
+          gst: 18,
+          total: "0.00",
+        },
+      ]);
     };
 
-    loadInvoiceForEdit();
+    loadInvoice();
   }, []);
 
   const app = useAppBridge();
@@ -346,6 +410,10 @@ const App = () => {
 
       if (result.ok) {
         showLocalToast(editingIndex ? "Invoice updated ✔" : "Invoice saved ✔");
+
+        localStorage.removeItem("editIndex");
+        setEditingIndex(null);
+        navigate("/app/saved");
       }
     } catch (error) {
       console.error("Save invoice error:", error);
